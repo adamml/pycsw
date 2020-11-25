@@ -7,6 +7,7 @@ NAMESPACES = {'sdo': NAMESPACE, 'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-
 
 XPATH_MAPPINGS = {
     'pycsw:Title': 'sdo:name',
+    'pycsw:Identifier': 'sdo:identifier',
     'pycsw:Creator': 'dif:Data_Set_Citation/dif:Dataset_Creator',
     'pycsw:TopicCategory': 'dif:ISO_Topic_Category',
     'pycsw:Keywords': 'dif:Keyword',
@@ -18,8 +19,9 @@ XPATH_MAPPINGS = {
     'pycsw:ResourceLanguage': 'dif:Data_Set_Language',
     'pycsw:Relation': 'dif:Related_URL/dif:URL',
     'pycsw:AccessConstraints': 'dif:Access_Constraints',
-    'pycsw:TempExtent_begin': 'dif:Temporal_Coverage/dif:Start_Date',
-    'pycsw:TempExtent_end': 'dif:Temporal_Coverage/dif:Stop_Date',
+    'pycsw:TempExtent_begin': 'sdo:temporalCoverage',
+    'pycsw:TempExtent_end': 'sdo:temporalCoverage',
+    'pycsw:Modified': 'sdo:version'
 }
 
 def write_record(result, esn, context, url=None):
@@ -30,19 +32,29 @@ def write_record(result, esn, context, url=None):
     
     node = etree.Element(util.nspath_eval('rdf:RDF', NAMESPACES), nsmap=NAMESPACES)
     rdfDescription = etree.SubElement(node,util.nspath_eval('rdf:Description', NAMESPACES), nsmap=NAMESPACES)
+
     rdfType = etree.SubElement(rdfDescription,util.nspath_eval('rdf:type', NAMESPACES), nsmap=NAMESPACES)
-    rdfType.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}resource'] = 'https://schema.org/Dataset'
+    rdfType.attrib['{' + NAMESPACES['rdf'] + '}resource'] = NAMESPACES['sdo'] + 'Dataset'
     
-    # title
-    val = util.getqattr(result, context.md_core_model['mappings']['pycsw:Title'])
-    if not val:
-        val = ''
-    etree.SubElement(rdfDescription, util.nspath_eval('sdo:name', NAMESPACES)).text = val
+    #identifier, title, abstract, modified
+    for qval in ['pycsw:Identifier', 'pycsw:Title', 'pycsw:Abstract', 'pycsw:Modified']:
+        val = util.getqattr(result, context.md_core_model['mappings'][qval])
+        if not val:
+            val = ''
+        etree.SubElement(rdfDescription, util.nspath_eval(XPATH_MAPPINGS[qval], NAMESPACES)).text = val
     
-    # description
-    val = util.getqattr(result, context.md_core_model['mappings']['pycsw:Abstract'])
-    if not val:
-        val = ''
-    etree.SubElement(rdfDescription, util.nspath_eval('sdo:description', NAMESPACES)).text = val
+    # Temporal coverage
+    dateRange = ''
+    for qval in ['pycsw:TempExtent_begin','pycsw:TempExtent_end']:
+        val = util.getqattr(result, context.md_core_model['mappings'][qval])
+        if not val:
+            val = ''
+        if qval == 'pycsw:TempExtent_end':
+            if val == '':
+                val = '/..'
+            else:
+                val = '/' + val
+        dateRange = dateRange + val
+    etree.SubElement(rdfDescription, util.nspath_eval(XPATH_MAPPINGS['pycsw:TempExtent_begin'], NAMESPACES)).text = val
     
     return node
